@@ -34,3 +34,7 @@ The returned datetime SHALL be a valid ISO 8601 string with no timezone suffix (
 #### Scenario: No date/time uses receipt timestamp
 - **WHEN** the user inputs "купив каву за 50" with no date or time and the receipt timestamp is "2026-06-28T14:35:00"
 - **THEN** the parsed datetime SHALL be "2026-06-28T14:35:00"
+
+#### Scenario: Per-expense inference in multi-expense input
+- **WHEN** the user inputs "купив каву о 14:00 і хліб годину тому" and the receipt timestamp is "2026-06-28T15:00:00"
+- **THEN** the coffee expense datetime SHALL be "2026-06-28T14:00:00" and the bread expense datetime SHALL be "2026-06-28T14:00:00"

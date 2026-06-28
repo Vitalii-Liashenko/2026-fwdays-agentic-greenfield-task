@@ -116,8 +116,10 @@ def test_agent_reasoning(test_case):
     user_input = test_case["input"]
     gold = test_case["gold"]
 
-    # Extract
-    expense = extract_expense(user_input)
+    # Extract (returns a list, take the first expense)
+    expenses = extract_expense(user_input)
+    assert len(expenses) >= 1, f"Expected at least one expense, got {len(expenses)}"
+    expense = expenses[0]
 
     # Validate
     validation = validate_expense(expense)
@@ -148,14 +150,16 @@ def test_agent_reasoning(test_case):
             expense.confidence <= gold["confidence_max"]
         ), f"Confidence {expense.confidence} > max {gold['confidence_max']}"
 
-    # Check: datetime is valid ISO 8601 and not in future
+    # Check: datetime is valid ISO 8601 and not in future (with 4-hour buffer for timezone variance)
     try:
+        from datetime import timedelta
         parsed_dt = datetime.fromisoformat(expense.datetime)
         # Ensure both are naive for comparison
         if parsed_dt.tzinfo is not None:
             parsed_dt = parsed_dt.replace(tzinfo=None)
         now = datetime.now(timezone.utc).replace(tzinfo=None)
-        assert parsed_dt <= now, "Datetime should not be in the future"
+        buffer = timedelta(hours=4)
+        assert parsed_dt <= now + buffer, f"Datetime {parsed_dt} too far in the future (now={now})"
     except ValueError:
         pytest.fail(f"Invalid datetime format: {expense.datetime}")
 
@@ -179,7 +183,12 @@ def test_eval_pass_rate():
         gold = test_case["gold"]
 
         try:
-            expense = extract_expense(user_input)
+            expenses = extract_expense(user_input)
+            if not expenses:
+                failed += 1
+                print(f"FAIL (no expenses): {user_input}")
+                continue
+            expense = expenses[0]
             validation = validate_expense(expense)
 
             if not validation.valid:

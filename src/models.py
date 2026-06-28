@@ -3,6 +3,12 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 
+class ExpenseList(BaseModel):
+    """Wrapper for LangChain structured output."""
+
+    expenses: list["Expense"]
+
+
 class Expense(BaseModel):
     """Structured expense data extracted by the parser agent."""
 
