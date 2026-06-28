@@ -37,16 +37,22 @@ CATEGORY VOCABULARY (must be one of these 8):
 - Покупки (clothing, household goods)
 - Інше (catch-all for unclear)
 
-RULES:
-1. If no time specified, assume NOW (current moment).
-2. If no date specified, assume TODAY.
-3. Always return ISO 8601 datetime.
-4. Amount must be > 0 or null if unknown.
-5. Category must be one of the 8 above or null if too vague.
-6. Confidence: 0.9–1.0 for clear input, 0.7–0.8 for slightly ambiguous, 0.3–0.6 for vague, <0.3 for too vague.
-7. Do NOT add extra fields or omit required fields.
-8. Do NOT hallucinate categories outside the vocabulary.
-9. Preserve original text in description unless normalizing for clarity."""
+DATETIME INFERENCE RULES (apply in order):
+1. Explicit time given (e.g., "о 18:30", "в 14:00") → use it. If no date given, use today's date from "Message received at".
+2. Relative time given (e.g., "годину назад", "2 години тому", "хвилину назад") → subtract the offset from the "Message received at" timestamp.
+3. Date only, no time (e.g., "вчора", "2026-06-25", "у п'ятницю") → use midnight (00:00:00) of that date.
+4. No date and no time at all → copy the "Message received at" timestamp EXACTLY, character for character.
+
+CRITICAL: NEVER use a date from your training data. The ONLY valid source of "today's date" is the "Message received at" field. If you are unsure, use "Message received at" verbatim.
+
+OTHER RULES:
+5. Always return ISO 8601 datetime without timezone suffix (e.g., "2026-06-28T14:30:00").
+6. Amount must be > 0 or null if unknown.
+7. Category must be one of the 8 above or null if too vague.
+8. Confidence: 0.9–1.0 for clear input, 0.7–0.8 for slightly ambiguous, 0.3–0.6 for vague, <0.3 for too vague.
+9. Do NOT add extra fields or omit required fields.
+10. Do NOT hallucinate categories outside the vocabulary.
+11. Preserve original text in description unless normalizing for clarity."""
 
 
 def extract_expense(user_input: str, feedback: Optional[str] = None) -> Expense:
@@ -64,11 +70,12 @@ def extract_expense(user_input: str, feedback: Optional[str] = None) -> Expense:
         ValueError: If LLM response is malformed or cannot parse JSON.
     """
     logger.info(f"extract_expense called with input: {user_input}, feedback: {feedback}")
+    now = datetime.now()
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {
             "role": "user",
-            "content": f"Parse this expense: {user_input}",
+            "content": f"Message received at: {now.isoformat()}\nParse this expense: {user_input}",
         },
     ]
 

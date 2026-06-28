@@ -1,7 +1,7 @@
 """Validator (checker): Rule-based validation of parsed expenses."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 
 from .config import VALID_CATEGORIES, CONFIDENCE_THRESHOLD
 from .models import Expense, ValidationResult
@@ -61,10 +61,10 @@ def validate_expense(expense: Expense) -> ValidationResult:
     logger.debug(f"Rule 4: Checking datetime={expense.datetime}")
     try:
         parsed_dt = datetime.fromisoformat(expense.datetime)
-        # Ensure both are naive for comparison
         if parsed_dt.tzinfo is not None:
             parsed_dt = parsed_dt.replace(tzinfo=None)
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        # Use local time + 60s buffer to tolerate LLM processing latency
+        now = datetime.now() + timedelta(seconds=60)
         logger.debug(f"Parsed datetime: {parsed_dt}, now: {now}")
         if parsed_dt > now:
             errors.append(f"datetime cannot be in the future: {expense.datetime}")

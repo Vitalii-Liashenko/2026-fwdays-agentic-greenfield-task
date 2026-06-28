@@ -77,10 +77,18 @@ The user's expense MUST map to one of the 8 canonical categories defined in [REA
 
 ### Datetime Inference
 
-- If the user specifies a time (e.g., "вчора о 14:30", "сьогодні"), parse it.
-- If only a date is specified (e.g., "вчора", "2026-06-25"), use midnight (00:00).
-- **If no date/time is specified**, assume **now** — the current moment when the message was sent.
-- Always return ISO 8601 format: `"2026-06-27T14:30:00"`
+Apply rules in order:
+
+| Case | Example | Datetime to use |
+|---|---|---|
+| Explicit time given | "о 18:30", "в 14:00" | That time; today's date if no date given |
+| Relative time given | "годину назад", "2 години тому" | Receipt timestamp minus the offset |
+| Date only, no time | "вчора", "2026-06-25" | Midnight (00:00:00) of that date |
+| No date and no time | "купив каву за 50" | Receipt timestamp (injected as "Message received at") |
+
+The receipt timestamp is injected into every LLM call as: `Message received at: <ISO 8601>`.
+
+Always return ISO 8601 format without timezone suffix: `"2026-06-27T14:30:00"`
 
 ### Amount Parsing
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 
@@ -23,10 +23,10 @@ class Expense(BaseModel):
     def validate_datetime(cls, v):
         try:
             parsed = datetime.fromisoformat(v)
-            # Ensure both are naive for comparison
             if parsed.tzinfo is not None:
                 parsed = parsed.replace(tzinfo=None)
-            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            # Use local time + 60s buffer to tolerate LLM processing latency
+            now = datetime.now() + timedelta(seconds=60)
             if parsed > now:
                 raise ValueError("datetime cannot be in the future")
             return v
