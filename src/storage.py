@@ -67,6 +67,23 @@ def store_expense(expense: Expense, validation_errors: Optional[str] = None) -> 
         conn.close()
 
 
+def store_expenses(expenses: List[Expense], validation_errors: Optional[str] = None) -> List[int]:
+    """
+    Store a list of expenses, inserting one row per expense.
+
+    Args:
+        expenses: List of Expense objects to store.
+        validation_errors: Optional error message if soft-fail (applied to all rows).
+
+    Returns:
+        List of inserted expense IDs.
+
+    Raises:
+        StorageError: If any insert fails.
+    """
+    return [store_expense(expense, validation_errors=validation_errors) for expense in expenses]
+
+
 def get_all_expenses() -> List[dict]:
     """
     Retrieve all expenses, ordered by datetime (newest first).

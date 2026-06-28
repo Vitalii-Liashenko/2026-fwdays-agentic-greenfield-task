@@ -58,7 +58,12 @@ class ProcessExpenseResult(BaseModel):
     """Result of processing an expense (parse + validate + store)."""
 
     success: bool
-    expense: Optional[Expense] = None
+    expenses: list[Expense] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     message: str
     validation_errors: Optional[str] = None
+
+    @property
+    def expense(self) -> Optional[Expense]:
+        """Backward-compat: return the first expense or None."""
+        return self.expenses[0] if self.expenses else None

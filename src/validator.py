@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
+from typing import List
 
 from .config import VALID_CATEGORIES, CONFIDENCE_THRESHOLD
 from .models import Expense, ValidationResult
@@ -108,3 +109,41 @@ def validate_expense(expense: Expense) -> ValidationResult:
         logger.info("Validation passed")
         # Success
         return ValidationResult(valid=True)
+
+
+def validate_expenses(expenses: List[Expense]) -> ValidationResult:
+    """
+    Validate a list of expenses, collecting all errors across all items.
+
+    Args:
+        expenses: List of Expense objects to validate.
+
+    Returns:
+        Combined ValidationResult. Hard-fail if any item fails hard rules.
+        Soft-fail if any item triggers low-confidence but no hard errors.
+    """
+    all_errors = []
+    any_soft_fail = False
+
+    for i, expense in enumerate(expenses):
+        result = validate_expense(expense)
+        if not result.valid:
+            prefixed = [f"[{i}] {e}" for e in result.errors]
+            all_errors.extend(prefixed)
+        elif result.errors:
+            # soft-fail from this item
+            any_soft_fail = True
+
+    if all_errors:
+        return ValidationResult(
+            valid=False,
+            errors=all_errors,
+            feedback=f"Validation failed: {'; '.join(all_errors)}. Please retry.",
+        )
+    elif any_soft_fail:
+        return ValidationResult(
+            valid=True,
+            errors=["confidence < 0.7 (flagged for review)"],
+            feedback=None,
+        )
+    return ValidationResult(valid=True)

@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 
 from .config import TELEGRAM_BOT_TOKEN
 from .processor import process_expense
-from .storage import store_expense, get_all_expenses, get_total_expense, StorageError
+from .storage import store_expenses, get_all_expenses, get_total_expense, StorageError
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -69,14 +69,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         result = process_expense(user_input)
         logger.info(f"process_expense returned: success={result.success}, message={result.message}")
 
-        if result.success and result.expense:
-            # Store the expense
+        if result.success and result.expenses:
+            # Store all expenses
             try:
-                logger.info(f"Storing expense: {result.expense}")
-                store_expense(result.expense, validation_errors=result.validation_errors)
-                await update.message.reply_text(
-                    f"{result.message}: {result.expense.amount} UAH ({result.expense.category})"
+                logger.info(f"Storing {len(result.expenses)} expense(s)")
+                store_expenses(result.expenses, validation_errors=result.validation_errors)
+                summary = ", ".join(
+                    f"{e.amount} UAH ({e.category})" for e in result.expenses
                 )
+                await update.message.reply_text(f"{result.message}: {summary}")
             except StorageError as e:
                 logger.error(f"Storage error: {e}", exc_info=True)
                 await update.message.reply_text("❌ Помилка збереження. Спробуйте пізніше.")

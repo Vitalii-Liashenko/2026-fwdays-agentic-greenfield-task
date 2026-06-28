@@ -17,7 +17,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # System prompt for the LLM (refers to AGENTS.md content)
 SYSTEM_PROMPT = """You are an expense parser agent. Your task is to extract structured expense data from free-form Ukrainian text.
 
-You MUST return valid JSON matching this schema:
+You MUST return a valid JSON ARRAY of expense objects. Each object must match this schema:
 {
   "amount": number or null,
   "currency": "UAH",
@@ -26,6 +26,21 @@ You MUST return valid JSON matching this schema:
   "datetime": string (ISO 8601),
   "confidence": number (0.0–1.0)
 }
+
+ALWAYS return an array, even for a single expense: [{ ... }]
+
+MULTIPLE EXPENSES: If the user describes more than one distinct purchase with separate amounts, return one object per purchase.
+COMBINED TOTALS: If the user lists multiple items but gives only one total amount, return a single expense for that total amount.
+
+EXAMPLES:
+Input: "купив каву за 50 і хліб за 30"
+Output: [{"amount": 50, "currency": "UAH", "category": "Кафе/Ресторани", "description": "купив каву за 50", "datetime": "<receipt_ts>", "confidence": 0.95}, {"amount": 30, "currency": "UAH", "category": "Продукти", "description": "хліб за 30", "datetime": "<receipt_ts>", "confidence": 0.95}]
+
+Input: "купив пиво і воду за 30"
+Output: [{"amount": 30, "currency": "UAH", "category": "Кафе/Ресторани", "description": "купив пиво і воду за 30", "datetime": "<receipt_ts>", "confidence": 0.85}]
+
+Input: "купив каву за 50"
+Output: [{"amount": 50, "currency": "UAH", "category": "Кафе/Ресторани", "description": "купив каву за 50", "datetime": "<receipt_ts>", "confidence": 0.95}]
 
 CATEGORY VOCABULARY (must be one of these 8):
 - Продукти (groceries, food shopping)
@@ -37,7 +52,7 @@ CATEGORY VOCABULARY (must be one of these 8):
 - Покупки (clothing, household goods)
 - Інше (catch-all for unclear)
 
-DATETIME INFERENCE RULES (apply in order):
+DATETIME INFERENCE RULES (apply in order, independently for each expense):
 1. Explicit time given (e.g., "о 18:30", "в 14:00") → use it. If no date given, use today's date from "Message received at".
 2. Relative time given (e.g., "годину назад", "2 години тому", "хвилину назад") → subtract the offset from the "Message received at" timestamp.
 3. Date only, no time (e.g., "вчора", "2026-06-25", "у п'ятницю") → use midnight (00:00:00) of that date.
@@ -50,21 +65,21 @@ OTHER RULES:
 6. Amount must be > 0 or null if unknown.
 7. Category must be one of the 8 above or null if too vague.
 8. Confidence: 0.9–1.0 for clear input, 0.7–0.8 for slightly ambiguous, 0.3–0.6 for vague, <0.3 for too vague.
-9. Do NOT add extra fields or omit required fields.
+9. Do NOT add extra fields or omit required fields in any object.
 10. Do NOT hallucinate categories outside the vocabulary.
 11. Preserve original text in description unless normalizing for clarity."""
 
 
-def extract_expense(user_input: str, feedback: Optional[str] = None) -> Expense:
+def extract_expense(user_input: str, feedback: Optional[str] = None) -> list[Expense]:
     """
-    Extract structured expense from user input using LLM.
+    Extract structured expenses from user input using LLM.
 
     Args:
-        user_input: Free-form Ukrainian text describing an expense.
+        user_input: Free-form Ukrainian text describing one or more expenses.
         feedback: Optional validation feedback from a prior failed attempt.
 
     Returns:
-        Expense object (may have null fields if too vague).
+        List of Expense objects (one per detected purchase).
 
     Raises:
         ValueError: If LLM response is malformed or cannot parse JSON.
@@ -97,7 +112,7 @@ def extract_expense(user_input: str, feedback: Optional[str] = None) -> Expense:
     response = client.chat.completions.create(
         model=LLM_MODEL,
         messages=messages,
-        temperature=0.3,  # Low temperature for consistent parsing
+        temperature=0.3,
     )
 
     content = response.choices[0].message.content
@@ -112,7 +127,18 @@ def extract_expense(user_input: str, feedback: Optional[str] = None) -> Expense:
         logger.error(f"JSON decode error: {e}, content: {content}")
         raise ValueError(f"LLM response is not valid JSON: {e}")
 
-    logger.info(f"Creating Expense object from data: {data}")
-    expense = Expense(**data)
-    logger.info(f"Expense created successfully: {expense}")
-    return expense
+    if isinstance(data, dict):
+        # Gracefully handle a model that returns a single object instead of array
+        data = [data]
+
+    if not isinstance(data, list):
+        raise ValueError(f"LLM response is not a JSON array: {type(data)}")
+
+    expenses = []
+    for i, item in enumerate(data):
+        logger.info(f"Creating Expense object [{i}] from data: {item}")
+        expense = Expense(**item)
+        expenses.append(expense)
+        logger.info(f"Expense [{i}] created: {expense}")
+
+    return expenses
