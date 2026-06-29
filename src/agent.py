@@ -1,6 +1,7 @@
 """Parser agent: LLM-powered expense extraction from free-form Ukrainian text."""
 
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 
@@ -12,6 +13,29 @@ from .config import OPENAI_API_KEY, LLM_MODEL
 from .models import Expense, ExpenseList
 
 logger = logging.getLogger(__name__)
+
+# Langsmith client singleton — initialized at module load if credentials are set
+langsmith_client = None
+
+
+def _init_langsmith_client():
+    """Initialize Langsmith client if LANGSMITH_API_KEY and LANGSMITH_PROJECT are set."""
+    global langsmith_client
+    api_key = os.environ.get("LANGSMITH_API_KEY")
+    project = os.environ.get("LANGSMITH_PROJECT")
+    if not api_key or not project:
+        return
+    try:
+        from langsmith import Client as LangsmithClientClass
+        endpoint = os.environ.get("LANGSMITH_ENDPOINT")
+        langsmith_client = LangsmithClientClass(api_key=api_key, api_url=endpoint)
+        logger.info(f"Langsmith tracing enabled for project: {project} (endpoint: {endpoint or 'default'})")
+    except Exception as e:
+        logger.warning(f"Langsmith initialization failed, tracing disabled: {e}")
+        langsmith_client = None
+
+
+_init_langsmith_client()
 
 # System prompt for the LLM (refers to AGENTS.md content)
 SYSTEM_PROMPT = """You are an expense parser agent. Your task is to extract structured expense data from free-form Ukrainian text.
@@ -78,9 +102,28 @@ chain = (prompt | llm.with_structured_output(ExpenseList)).with_retry(
 )
 
 
+def _add_langsmith_metadata(expenses: list[Expense]) -> None:
+    """Attach extracted expense metadata to the current Langsmith run, if active."""
+    if langsmith_client is None:
+        return
+    try:
+        from langsmith import get_current_run_tree
+        run = get_current_run_tree()
+        if run is not None:
+            run.metadata.update({
+                "amounts": [e.amount for e in expenses],
+                "categories": [e.category for e in expenses],
+                "confidences": [e.confidence for e in expenses],
+            })
+    except Exception as e:
+        logger.debug(f"Langsmith metadata update skipped: {e}")
+
+
 def extract_expense(user_input: str, feedback: Optional[str] = None) -> list[Expense]:
     """
     Extract structured expenses from user input using LangChain.
+
+    Decorated with @traceable when Langsmith is configured (LANGCHAIN_TRACING_V2=true).
 
     Args:
         user_input: Free-form Ukrainian text describing one or more expenses.
@@ -106,7 +149,37 @@ def extract_expense(user_input: str, feedback: Optional[str] = None) -> list[Exp
         logger.info(f"Chain returned ExpenseList: {result}")
         expenses = result.expenses
         logger.info(f"Extracted {len(expenses)} expense(s)")
+        _add_langsmith_metadata(expenses)
         return expenses
     except Exception as e:
         logger.error(f"Chain invocation failed: {e}")
         raise
+
+
+def submit_feedback(
+    run_id: str,
+    expected_category: str,
+    expected_amount: Optional[float],
+    notes: str = "",
+) -> None:
+    """Submit a correction to Langsmith for evaluator training.
+
+    Non-blocking: errors are logged and swallowed so callers are unaffected.
+    """
+    if langsmith_client is None:
+        logger.debug("Langsmith not configured; feedback submission skipped")
+        return
+    try:
+        langsmith_client.create_feedback(
+            run_id=run_id,
+            key="correction",
+            score=0,
+            value={
+                "expected_category": expected_category,
+                "expected_amount": expected_amount,
+                "notes": notes,
+            },
+        )
+        logger.info(f"Feedback submitted for run {run_id}")
+    except Exception as e:
+        logger.warning(f"Langsmith feedback submission failed: {e}")

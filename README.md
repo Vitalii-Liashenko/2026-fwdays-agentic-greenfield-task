@@ -214,6 +214,30 @@ The parser maps all expenses to one of 8 categories:
 7. **Покупки** — Clothing, household goods
 8. **Інше** — Catch-all (unclear)
 
+## Langsmith Tracing (Optional)
+
+To enable end-to-end tracing of LLM calls and run custom evaluators, set these environment variables:
+
+```bash
+export LANGSMITH_API_KEY=<your_langsmith_api_key>
+export LANGSMITH_PROJECT=<your_project_name>
+```
+
+When set, the parser automatically traces every chain invocation to Langsmith, including token usage, prompts, and extracted expense metadata (amounts, categories, confidences).
+
+To run the custom evaluators against traced runs, use the functions in `src/evals.py`:
+
+```python
+from src.evals import evaluate_category_accuracy, evaluate_amount_accuracy, evaluate_confidence_calibration
+```
+
+To submit a correction for evaluator training:
+
+```python
+from src.agent import submit_feedback
+submit_feedback(run_id="...", expected_category="Транспорт", expected_amount=200)
+```
+
 ## Future (MVP+1)
 
 - Voice input (STT)
