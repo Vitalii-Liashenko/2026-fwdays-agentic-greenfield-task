@@ -35,26 +35,26 @@ def process_expense(
     _extract = extract_fn or extract_expense
     _validate = validate_fn or validate_expenses
 
-    logger.info(f"Starting process_expense for input: {raw_text}")
+    logger.debug(f"Starting process_expense for input: {raw_text}")
     expenses: list[Expense] = []
     feedback: Optional[str] = None
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            logger.info(f"Attempt {attempt}/{MAX_RETRIES}: extracting expenses...")
+            logger.debug(f"Attempt {attempt}/{MAX_RETRIES}: extracting expenses...")
             expenses = _extract(raw_text, feedback=feedback)
-            logger.info(f"Expenses extracted: {expenses}")
+            logger.debug(f"Expenses extracted: {expenses}")
 
-            logger.info("Validating expenses...")
+            logger.debug("Validating expenses...")
             validation = _validate(expenses)
-            logger.info(f"Validation result: valid={validation.valid}, errors={validation.errors}")
+            logger.debug(f"Validation result: valid={validation.valid}, errors={validation.errors}")
 
             if validation.valid:
                 count = len(expenses)
                 message = f"✅ {'Витрата записана' if count == 1 else f'{count} витрати записано'}"
                 if validation.errors:
                     message += " (низька впевненість)"
-                    logger.info(f"Soft-fail with errors: {validation.errors}")
+                    logger.debug(f"Soft-fail with errors: {validation.errors}")
                     return ProcessExpenseResult(
                         success=True,
                         expenses=expenses,
@@ -63,7 +63,7 @@ def process_expense(
                         validation_errors="; ".join(validation.errors),
                     )
                 else:
-                    logger.info("Validation passed")
+                    logger.debug("Validation passed")
                     return ProcessExpenseResult(
                         success=True,
                         expenses=expenses,

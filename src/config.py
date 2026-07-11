@@ -46,3 +46,8 @@ MAX_RETRIES = 3
 
 # LLM model
 LLM_MODEL = "gpt-4o-mini"
+
+# LangSmith
+LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
+LANGSMITH_ENDPOINT = os.getenv("LANGSMITH_ENDPOINT", "https://eu.api.smith.langchain.com")
+LANGSMITH_PROJECT = os.getenv("LANGSMITH_PROJECT", "expense-tracker")

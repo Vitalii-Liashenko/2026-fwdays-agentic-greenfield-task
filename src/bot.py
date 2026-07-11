@@ -60,21 +60,21 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle expense message."""
     user_input = update.message.text.strip()
-    logger.info(f"Processing user input: {user_input}")
+    logger.debug(f"Processing user input: {user_input}")
 
     if not user_input:
         return
 
     try:
         # Process the expense
-        logger.info("Calling process_expense...")
+        logger.debug("Calling process_expense...")
         result = process_expense(user_input)
-        logger.info(f"process_expense returned: success={result.success}, message={result.message}")
+        logger.debug(f"process_expense returned: success={result.success}, message={result.message}")
 
         if result.success and result.expenses:
             # Store all expenses
             try:
-                logger.info(f"Storing {len(result.expenses)} expense(s)")
+                logger.debug(f"Storing {len(result.expenses)} expense(s)")
                 _store.store_expenses(result.expenses, validation_errors=result.validation_errors)
                 summary = ", ".join(
                     f"{e.amount} UAH ({e.category})" for e in result.expenses

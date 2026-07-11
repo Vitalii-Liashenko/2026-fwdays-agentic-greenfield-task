@@ -136,7 +136,7 @@ def extract_expense(user_input: str, feedback: Optional[str] = None, chain=None)
     Raises:
         ValueError: If LLM response is malformed or validation fails.
     """
-    logger.info(f"extract_expense called with input: {user_input}, feedback: {feedback}")
+    logger.debug(f"extract_expense called with input: {user_input}, feedback: {feedback}")
     now = datetime.now()
 
     # Append feedback to user_input if provided
@@ -148,9 +148,9 @@ def extract_expense(user_input: str, feedback: Optional[str] = None, chain=None)
     logger.debug(f"Invoking chain with received_at={now.isoformat()}, user_input={expense_input}")
     try:
         result = active_chain.invoke({"received_at": now.isoformat(), "user_input": expense_input})
-        logger.info(f"Chain returned ExpenseList: {result}")
+        logger.debug(f"Chain returned ExpenseList: {result}")
         expenses = result.expenses
-        logger.info(f"Extracted {len(expenses)} expense(s)")
+        logger.debug(f"Extracted {len(expenses)} expense(s)")
         _add_langsmith_metadata(expenses)
         return expenses
     except Exception as e:
