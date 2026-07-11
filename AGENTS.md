@@ -56,7 +56,7 @@ You MUST return valid JSON matching this exact schema:
 **Important**:
 - Do NOT add extra fields.
 - Do NOT omit required fields.
-- Do NOT return null for amount or category unless the input is too vague (confidence < 0.3).
+- `amount` and `category` MUST always be non-null. A null amount or category is a **hard-fail** — the `Expense` model rejects it at construction, triggering retries, and ultimately a processing failure if the amount cannot be resolved.
 - All fields must be present in every response.
 
 ---
@@ -94,15 +94,15 @@ Always return ISO 8601 format without timezone suffix: `"2026-06-27T14:30:00"`
 
 - Extract the numeric amount in UAH.
 - If the user specifies another currency (e.g., "50 дол"), convert or flag low confidence (this is rare in MVP).
-- If no amount is given or it is zero/negative, set amount = null and confidence < 0.3.
+- `amount` MUST always be a number > 0. **Never return null.** If no amount can be determined from the input, this is a **hard-fail**: returning `amount=null` is rejected by the `Expense` model at construction and triggers retries. If the amount genuinely cannot be resolved after retries, the expense is not recorded (processing returns a failure and asks the user for more detail).
 
 ### Confidence Scoring
 
 Your confidence score (0.0–1.0) reflects how certain you are in the extraction:
 - **0.9–1.0**: Clear, unambiguous input. "купив каву за 50" → category Кафе/Ресторани, confidence 0.95.
 - **0.7–0.8**: Slightly ambiguous but resolvable. "витратив на якісь дрібниці" → category Покупки or Інше, confidence 0.75.
-- **0.3–0.6**: Very vague or missing critical info. "витрати" (no amount, no category hint), confidence 0.3.
-- **< 0.3**: Too vague to extract reliably. Return null for amount/category, very low confidence.
+- **0.3–0.6**: Ambiguous category but a real amount is present. "купив якусь дрібницю за 20" → category Інше, confidence 0.5.
+- **< 0.3**: Reserved for cases where the category is genuinely unknowable but an amount exists. Do NOT use low confidence as a substitute for a missing amount — an absent amount is a hard-fail, not a low-confidence extraction.
 
 The checker will flag confidence < 0.7 for manual review. Low confidence is not a hard error; it's a soft warning.
 
@@ -117,21 +117,21 @@ Preserve the original user text as-is, or provide a normalized summary:
 
 ## Validation Rules (for your reference)
 
-A downstream **Checker** (rule-based validator) will validate your output against these rules. Use them to self-check before returning:
+Hard-fail rules are enforced by the Pydantic `Expense` model **at construction time** — if your output violates any of them, it cannot become an `Expense` object, which surfaces as a `ValueError`/`ValidationError` that triggers a retry. The downstream Checker (`validator.py`) only applies the soft-fail rule. Use these to self-check before returning:
 
-1. `amount > 0` (hard-fail if violated)
-2. `amount` is a valid number, not NaN or Infinity (hard-fail)
-3. `category ∈ {Продукти, Транспорт, Кафе/Ресторани, Комуналки, Розваги, Здоров'я, Покупки, Інше}` (hard-fail if violated)
-4. `datetime` is valid ISO 8601 and not in the future (hard-fail)
-5. `confidence ∈ [0.0, 1.0]` (hard-fail)
-6. `description` is non-empty (hard-fail)
-7. If `confidence < 0.7`, the checker will flag it (soft-fail — expense is stored but marked for review)
+1. `amount > 0` (hard-fail if violated — enforced at construction)
+2. `amount` is a valid number, not null, NaN, or Infinity (hard-fail — enforced at construction)
+3. `category ∈ {Продукти, Транспорт, Кафе/Ресторани, Комуналки, Розваги, Здоров'я, Покупки, Інше}` (hard-fail if violated — enforced at construction)
+4. `datetime` is valid ISO 8601 and not in the future (hard-fail — enforced at construction)
+5. `confidence ∈ [0.0, 1.0]` (hard-fail — enforced at construction)
+6. `description` is non-empty (hard-fail — enforced at construction)
+7. If `confidence < 0.7`, the checker flags it (soft-fail — expense is stored but marked for review)
 
-**Hard-fail** = the checker rejects your output and you will retry with feedback.
+**Hard-fail** = the `Expense` model rejects your output at construction; you will be retried with feedback. Returning null for `amount` or `category` is always a hard-fail.
 
 **Soft-fail** = the expense is stored anyway, but flagged.
 
-Avoid hard-fails by ensuring amount > 0, category is in the enum, datetime is valid, and confidence is in range.
+Avoid hard-fails by ensuring amount > 0 (never null), category is in the enum, datetime is valid, and confidence is in range.
 
 ---
 
@@ -179,23 +179,25 @@ Use these as reference for how to parse similar inputs:
 
 ---
 
-### Example 3: Ambiguous — Maps to "Інше"
+### Example 3: Ambiguous Category — Maps to "Інше" with Low Confidence
 
-**Input**: `"витратив на якусь дивну річ"`
+**Input**: `"витратив 80 на якусь дивну річ"`
 
 **Output**:
 ```json
 {
-  "amount": null,
+  "amount": 80,
   "currency": "UAH",
   "category": "Інше",
-  "description": "витратив на якусь дивну річ",
+  "description": "витратив 80 на якусь дивну річ",
   "datetime": "2026-06-27T14:30:00",
-  "confidence": 0.2
+  "confidence": 0.4
 }
 ```
 
-**Notes**: No amount, no clear category → Інше, low confidence, preserve raw text.
+**Notes**: Amount is present (80), but the category is unclear → Інше with low confidence. The amount is always required; an unknown category maps to Інше rather than null. If no amount is present at all, the input is a hard-fail and must not be recorded as an expense — see the note below.
+
+> **No amount = hard-fail.** An input like `"витратив на якусь дивну річ"` (no amount) cannot be extracted: `amount` must be `> 0` and non-null. Such input triggers retries and, if unresolved, a processing failure that asks the user for more detail — it is never stored as a null-amount expense.
 
 ---
 
@@ -250,7 +252,7 @@ If your output fails the Checker's validation, you will receive feedback with:
 1. Re-read the original text carefully.
 2. Adjust your extraction based on the feedback.
 3. If the category is wrong, re-map to the closest enum member or "Інше".
-4. If the amount is invalid (≤ 0), set it to null and confidence < 0.3.
+4. If the amount is invalid (≤ 0) or absent, **do not return null** — attempt to infer a positive numeric amount from the text. If no amount can be determined, return `amount` as a positive best-guess only if justified by the text; otherwise the input is a hard-fail and will be retried, then reported as a failure if unresolved.
 5. Return a corrected JSON output.
 
 **Max retries**: You will be retried up to 3 times. If all 3 retries fail, the bot will ask the user to clarify or provide more detail.
@@ -271,7 +273,7 @@ If your output fails the Checker's validation, you will receive feedback with:
 
 You have done your job well if:
 1. Your JSON is valid and matches the schema exactly.
-2. `amount` is always > 0 (or null if truly unknown).
+2. `amount` is always > 0 and never null (a missing amount is a hard-fail, not a valid extraction).
 3. `category` is always one of the 8 canonical values.
 4. `datetime` is always a valid ISO 8601 timestamp, not in the future.
 5. `confidence` reflects the true certainty of your extraction (high for clear input, low for vague input).

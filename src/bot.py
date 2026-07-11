@@ -6,7 +6,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 
 from .config import TELEGRAM_BOT_TOKEN
 from .processor import process_expense
-from .storage import store_expenses, get_all_expenses, get_total_expense, StorageError
+from .storage import ExpenseStore, StorageError
+
+_store = ExpenseStore()
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -31,8 +33,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /report command."""
     try:
-        expenses = get_all_expenses()
-        total = get_total_expense()
+        expenses = _store.get_all_expenses()
+        total = _store.get_total_expense()
 
         if not expenses:
             await update.message.reply_text("📊 Витрат не знайдено.")
@@ -73,7 +75,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # Store all expenses
             try:
                 logger.info(f"Storing {len(result.expenses)} expense(s)")
-                store_expenses(result.expenses, validation_errors=result.validation_errors)
+                _store.store_expenses(result.expenses, validation_errors=result.validation_errors)
                 summary = ", ".join(
                     f"{e.amount} UAH ({e.category})" for e in result.expenses
                 )

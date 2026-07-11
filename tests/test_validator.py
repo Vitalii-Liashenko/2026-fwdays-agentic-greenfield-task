@@ -50,48 +50,42 @@ def test_validate_amount_negative():
 
 
 def test_validate_amount_null():
-    """Null amount fails hard."""
-    expense = Expense(
-        amount=None,
-        currency="UAH",
-        category="Продукти",
-        description="test",
-        datetime="2026-06-27T14:30:00",
-        confidence=0.8,
-    )
-    result = validate_expense(expense)
-    assert result.valid is False
-    assert any("amount is null" in e for e in result.errors)
+    """Null amount fails hard at Pydantic construction."""
+    with pytest.raises(ValidationError):
+        Expense(
+            amount=None,
+            currency="UAH",
+            category="Продукти",
+            description="test",
+            datetime="2026-06-27T14:30:00",
+            confidence=0.8,
+        )
 
 
 def test_validate_invalid_category():
-    """Invalid category fails hard."""
-    expense = Expense(
-        amount=50.0,
-        currency="UAH",
-        category="ПривидняКатегорія",
-        description="test",
-        datetime="2026-06-27T14:30:00",
-        confidence=0.8,
-    )
-    result = validate_expense(expense)
-    assert result.valid is False
-    assert any("not in vocabulary" in e for e in result.errors)
+    """Invalid category fails hard at Pydantic construction."""
+    with pytest.raises(ValidationError):
+        Expense(
+            amount=50.0,
+            currency="UAH",
+            category="ПривидняКатегорія",
+            description="test",
+            datetime="2026-06-27T14:30:00",
+            confidence=0.8,
+        )
 
 
 def test_validate_null_category():
-    """Null category fails hard."""
-    expense = Expense(
-        amount=50.0,
-        currency="UAH",
-        category=None,
-        description="test",
-        datetime="2026-06-27T14:30:00",
-        confidence=0.8,
-    )
-    result = validate_expense(expense)
-    assert result.valid is False
-    assert any("category is null" in e for e in result.errors)
+    """Null category fails hard at Pydantic construction."""
+    with pytest.raises(ValidationError):
+        Expense(
+            amount=50.0,
+            currency="UAH",
+            category=None,
+            description="test",
+            datetime="2026-06-27T14:30:00",
+            confidence=0.8,
+        )
 
 
 def test_validate_future_datetime():

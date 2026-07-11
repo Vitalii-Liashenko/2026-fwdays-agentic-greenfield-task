@@ -81,15 +81,11 @@ TEST_CASES = [
             "confidence_min": 0.8,
         },
     },
-    {
-        "id": 9,
-        "input": "витратив на дивну річ",
-        "gold": {
-            "amount": None,  # Too vague, amount unknown
-            "category": "Інше",
-            "confidence_max": 0.5,  # Very low confidence expected
-        },
-    },
+    # Note: former eval_9 ("витратив на дивну річ", amount=None) removed.
+    # Under the consolidated validation model (expense-model-validation capability),
+    # a null amount is a hard-fail at Expense construction, so vague no-amount input
+    # is no longer a supported agent extraction case. The null-amount hard-fail path
+    # is covered by tests/test_integration.py::test_integration_hard_fail_vague_input.
     {
         "id": 10,
         "input": "ресторан 420",

@@ -17,13 +17,19 @@ def test_integration_happy_path():
     assert result.message.startswith("✅")
 
 
-def test_integration_soft_fail_low_confidence():
-    """Soft-fail: low confidence → expense stored but flagged."""
-    result = process_expense("витрати")  # Very vague
+def test_integration_hard_fail_vague_input():
+    """Hard-fail: vague input with no amount → LLM returns null amount →
+    Expense construction rejects it (hard rule), retries exhaust, failure returned.
 
-    assert result.success is True
-    assert len(result.expenses) >= 1
-    assert result.validation_errors is not None  # Flagged
+    Under the consolidated-validation model, `amount=None` is a hard-fail enforced
+    at Expense construction time (see expense-model-validation capability). Vague
+    input that yields a null amount therefore cannot be soft-stored; it retries
+    and fails rather than recording an invalid expense.
+    """
+    result = process_expense("витрати")  # Very vague, no amount
+
+    assert result.success is False
+    assert result.expenses == []
 
 
 def test_integration_hard_fail_retry():

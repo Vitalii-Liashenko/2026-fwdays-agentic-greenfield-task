@@ -84,22 +84,24 @@ OTHER RULES:
 
 MAX_RETRIES = 3
 
-# Initialize LLM
-llm = ChatOpenAI(model=LLM_MODEL, temperature=0.3, api_key=OPENAI_API_KEY)
+_chain = None
 
-# Create prompt template
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", SYSTEM_PROMPT),
-        ("human", "Message received at: {received_at}\nParse this expense: {user_input}"),
-    ]
-)
 
-# Build LCEL chain with structured output and retry
-chain = (prompt | llm.with_structured_output(ExpenseList)).with_retry(
-    stop_after_attempt=MAX_RETRIES,
-    retry_if_exception_type=(ValueError,)
-)
+def _get_chain():
+    global _chain
+    if _chain is None:
+        llm = ChatOpenAI(model=LLM_MODEL, temperature=0.3, api_key=OPENAI_API_KEY)
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", SYSTEM_PROMPT),
+                ("human", "Message received at: {received_at}\nParse this expense: {user_input}"),
+            ]
+        )
+        _chain = (prompt | llm.with_structured_output(ExpenseList)).with_retry(
+            stop_after_attempt=MAX_RETRIES,
+            retry_if_exception_type=(ValueError,)
+        )
+    return _chain
 
 
 def _add_langsmith_metadata(expenses: list[Expense]) -> None:
@@ -119,15 +121,14 @@ def _add_langsmith_metadata(expenses: list[Expense]) -> None:
         logger.debug(f"Langsmith metadata update skipped: {e}")
 
 
-def extract_expense(user_input: str, feedback: Optional[str] = None) -> list[Expense]:
+def extract_expense(user_input: str, feedback: Optional[str] = None, chain=None) -> list[Expense]:
     """
     Extract structured expenses from user input using LangChain.
-
-    Decorated with @traceable when Langsmith is configured (LANGCHAIN_TRACING_V2=true).
 
     Args:
         user_input: Free-form Ukrainian text describing one or more expenses.
         feedback: Optional validation feedback from a prior failed attempt.
+        chain: Optional LangChain chain to use. Defaults to lazily-initialized module chain.
 
     Returns:
         List of Expense objects (one per detected purchase).
@@ -143,9 +144,10 @@ def extract_expense(user_input: str, feedback: Optional[str] = None) -> list[Exp
     if feedback:
         expense_input = f"{user_input}\n\nValidation feedback: {feedback}\n\nPlease retry and correct the issue."
 
+    active_chain = chain or _get_chain()
     logger.debug(f"Invoking chain with received_at={now.isoformat()}, user_input={expense_input}")
     try:
-        result = chain.invoke({"received_at": now.isoformat(), "user_input": expense_input})
+        result = active_chain.invoke({"received_at": now.isoformat(), "user_input": expense_input})
         logger.info(f"Chain returned ExpenseList: {result}")
         expenses = result.expenses
         logger.info(f"Extracted {len(expenses)} expense(s)")

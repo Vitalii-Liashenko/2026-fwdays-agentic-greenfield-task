@@ -1,7 +1,7 @@
 """Expense processor: orchestrates agent → validator → storage."""
 
 import logging
-from typing import Optional
+from typing import Optional, Callable, List
 
 from .agent import extract_expense
 from .validator import validate_expenses
@@ -11,7 +11,11 @@ from .config import MAX_RETRIES
 logger = logging.getLogger(__name__)
 
 
-def process_expense(raw_text: str) -> ProcessExpenseResult:
+def process_expense(
+    raw_text: str,
+    extract_fn: Callable = None,
+    validate_fn: Callable = None,
+) -> ProcessExpenseResult:
     """
     Process a raw user input: parse with agent, validate with checker, retry on hard-fail.
 
@@ -28,6 +32,9 @@ def process_expense(raw_text: str) -> ProcessExpenseResult:
     Returns:
         ProcessExpenseResult with success flag, expenses list, and message.
     """
+    _extract = extract_fn or extract_expense
+    _validate = validate_fn or validate_expenses
+
     logger.info(f"Starting process_expense for input: {raw_text}")
     expenses: list[Expense] = []
     feedback: Optional[str] = None
@@ -35,11 +42,11 @@ def process_expense(raw_text: str) -> ProcessExpenseResult:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             logger.info(f"Attempt {attempt}/{MAX_RETRIES}: extracting expenses...")
-            expenses = extract_expense(raw_text, feedback=feedback)
+            expenses = _extract(raw_text, feedback=feedback)
             logger.info(f"Expenses extracted: {expenses}")
 
             logger.info("Validating expenses...")
-            validation = validate_expenses(expenses)
+            validation = _validate(expenses)
             logger.info(f"Validation result: valid={validation.valid}, errors={validation.errors}")
 
             if validation.valid:

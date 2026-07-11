@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, timedelta
 from typing import Optional
 
+from .config import VALID_CATEGORIES
+
 
 class ExpenseList(BaseModel):
     """Wrapper for LangChain structured output."""
@@ -21,8 +23,21 @@ class Expense(BaseModel):
 
     @field_validator("amount")
     def validate_amount(cls, v):
-        if v is not None and v <= 0:
+        if v is None:
+            raise ValueError("amount is required and must be > 0")
+        if v <= 0:
             raise ValueError("amount must be > 0")
+        return v
+
+    @field_validator("category")
+    def validate_category(cls, v):
+        if v is None:
+            raise ValueError("category is required")
+        if v not in VALID_CATEGORIES:
+            raise ValueError(
+                f"category '{v}' is not in vocabulary. "
+                f"Valid categories: {', '.join(sorted(VALID_CATEGORIES))}"
+            )
         return v
 
     @field_validator("datetime")
