@@ -1,4 +1,11 @@
-"""Reasoning evals: test that the parser agent correctly parses expenses."""
+"""Reasoning evals: test that the parser agent correctly parses expenses.
+
+These are LIVE API tests (call actual OpenAI API). Run with:
+    pytest tests/evals/test_reasoning.py -v
+
+To skip in CI:
+    pytest -m "not live_api" tests/
+"""
 
 import pytest
 from datetime import datetime, timezone
@@ -98,6 +105,7 @@ TEST_CASES = [
 ]
 
 
+@pytest.mark.live_api
 @pytest.mark.parametrize("test_case", TEST_CASES, ids=lambda tc: f"eval_{tc['id']}")
 def test_agent_reasoning(test_case):
     """
@@ -164,6 +172,7 @@ def test_agent_reasoning(test_case):
 
 
 # Aggregate pass rate metric for manual review
+@pytest.mark.live_api
 def test_eval_pass_rate():
     """
     Run all evals and report pass rate (for debugging).

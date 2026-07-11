@@ -43,3 +43,8 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+markers = [
+    "live_api: tests that call live OpenAI API (use -m 'not live_api' to skip)",
+]

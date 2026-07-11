@@ -119,3 +119,34 @@ class TestExceptionTriggersFeedback:
         assert result.success is True
         assert received_feedback[0] is None          # first attempt has no feedback
         assert "chain timeout" in received_feedback[1]  # second attempt gets the error
+
+
+class TestValidationFeedbackInjection:
+    def test_validation_feedback_injected_on_retry(self):
+        """Validation hard-fail feedback is passed to extract on next attempt."""
+        good_expense = _make_expense(category="Транспорт")
+        received_feedback = []
+        call_count = [0]
+
+        def fake_extract(text, feedback=None):
+            received_feedback.append(feedback)
+            call_count[0] += 1
+            return [good_expense]
+
+        def fake_validate(expenses):
+            call_count_val = [v for v in call_count]
+            if call_count_val[0] == 1:
+                # First validation: hard-fail with feedback
+                return ValidationResult(
+                    valid=False,
+                    errors=["category is null"],
+                    feedback="Use one of the 8 canonical categories.",
+                )
+            # Second validation: pass
+            return ValidationResult(valid=True)
+
+        result = process_expense("на бенз 200", extract_fn=fake_extract, validate_fn=fake_validate)
+
+        assert result.success is True
+        assert received_feedback[0] is None
+        assert "8 canonical categories" in received_feedback[1]  # feedback is present on retry

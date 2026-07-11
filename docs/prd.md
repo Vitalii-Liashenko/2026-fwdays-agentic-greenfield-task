@@ -176,7 +176,7 @@ Bot calls this function; storage/reply logic is separate.
 │   ├── test_agent.py      # Unit tests for agent
 │   ├── test_validator.py  # Unit tests for validator
 │   ├── evals/
-│   │   └── test_reasoning.py  # 10 reasoning evals (agent correctness)
+│   │   └── test_reasoning.py  # 9 reasoning evals (agent correctness)
 │   └── test_integration.py    # Integration tests (happy + error paths)
 ├── docker-compose.yml     # PostgreSQL
 ├── requirements.txt       # Dependencies
@@ -208,7 +208,7 @@ Bot calls this function; storage/reply logic is separate.
 - [ ] /report lists all expenses + sum
 
 ### Evals
-- [ ] 10 reasoning test cases (hand-written), ≥80% pass rate
+- [ ] 9 reasoning test cases (hand-written), ≥80% pass rate
 - [ ] Integration tests cover: happy path, hard-fail + retry, soft-fail
 
 ---
@@ -227,7 +227,7 @@ Bot calls this function; storage/reply logic is separate.
 
 ## 7. Success Metrics
 
-- Agent passes ≥80% of reasoning evals
+- Agent passes ≥80% of 9 reasoning evals
 - Bot processes a live expense (Telegram message → PostgreSQL) without errors
 - Validator catches all hard-fail cases
 - Checker rejects invalid output; agent retries and succeeds

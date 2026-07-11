@@ -23,6 +23,7 @@ class Expense(BaseModel):
 
     @field_validator("amount")
     def validate_amount(cls, v):
+        """Ensure amount is a positive number."""
         if v is None:
             raise ValueError("amount is required and must be > 0")
         if v <= 0:
@@ -31,6 +32,7 @@ class Expense(BaseModel):
 
     @field_validator("category")
     def validate_category(cls, v):
+        """Ensure category is one of 8 canonical values."""
         if v is None:
             raise ValueError("category is required")
         if v not in VALID_CATEGORIES:
@@ -42,6 +44,7 @@ class Expense(BaseModel):
 
     @field_validator("datetime")
     def validate_datetime(cls, v):
+        """Ensure datetime is valid ISO 8601 and not in the future."""
         try:
             parsed = datetime.fromisoformat(v)
             if parsed.tzinfo is not None:
@@ -56,12 +59,14 @@ class Expense(BaseModel):
 
     @field_validator("confidence")
     def validate_confidence(cls, v):
+        """Ensure confidence is in range [0.0, 1.0]."""
         if not (0.0 <= v <= 1.0):
             raise ValueError("confidence must be between 0.0 and 1.0")
         return v
 
     @field_validator("description")
     def validate_description(cls, v):
+        """Ensure description is non-empty."""
         if not v or not v.strip():
             raise ValueError("description must be non-empty")
         return v.strip()

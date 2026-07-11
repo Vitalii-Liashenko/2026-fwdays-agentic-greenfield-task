@@ -3,11 +3,11 @@
 CREATE TABLE IF NOT EXISTS expenses (
     id SERIAL PRIMARY KEY,
     amount DECIMAL(10, 2) NOT NULL CHECK (amount > 0),
-    currency VARCHAR(3) NOT NULL DEFAULT 'UAH',
-    category VARCHAR(50) NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'UAH' CHECK (currency = 'UAH'),
+    category VARCHAR(50) NOT NULL CHECK (category IN ('Продукти', 'Транспорт', 'Кафе/Ресторани', 'Комуналки', 'Розваги', 'Здоров''я', 'Покупки', 'Інше')),
     description TEXT NOT NULL,
     datetime TIMESTAMP NOT NULL,
-    confidence DECIMAL(3, 2) NOT NULL,
+    confidence DECIMAL(3, 2) NOT NULL CHECK (confidence >= 0.0 AND confidence <= 1.0),
     validation_errors TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -30,3 +30,13 @@ CREATE TABLE IF NOT EXISTS validation_logs (
     attempt_number INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Retention policy: delete validation_logs older than 30 days
+-- (Run this periodically via a cron job or scheduled task)
+-- DELETE FROM validation_logs WHERE created_at < NOW() - INTERVAL '30 days';
+
+-- Access Control:
+-- Restrict validation_logs table access to audit logs only.
+-- In production, use role-based access control:
+-- REVOKE ALL ON validation_logs FROM public;
+-- GRANT SELECT ON validation_logs TO audit_role;

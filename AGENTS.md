@@ -251,13 +251,24 @@ If your output fails the Checker's validation, you will receive feedback with:
 
 **Max retries**: You will be retried up to 3 times. If all 3 retries fail, the bot will ask the user to clarify or provide more detail.
 
+### Retry Architecture (Two-Level)
+
+The system uses intentional two-level retry logic:
+
+1. **LangChain chain-level** (src/agent.py): Retries on LLM parsing errors (ValueError, malformed JSON) — max 3 attempts via `tenacity.with_retry()`.
+2. **Processor-level** (src/processor.py): Retries on validation hard-fails — max 3 attempts via explicit loop. Each retry adds `Validation feedback: ...` to the next invocation.
+
+**Why both?** Chain-level catches transient LLM errors; processor-level catches validation failures and provides explicit feedback for self-correction. They are **not redundant** — they target different failure modes.
+
 ---
 
 ## Constraints & Out of Scope
 
 - **No external data**: Do not use live currency rates, real-time market data, or external APIs.
 - **No category innovation**: Always map to the 8 canonical categories; never propose a new one.
-- **No multi-expense parsing**: Each input is one expense; do not split "купив каву і печиво" into two expenses.
+- **Multi-expense parsing allowed**: If the user lists separate purchases with distinct amounts, return one object per purchase. If they list items but give one total, return a single expense for the total.
+  - Example 1: "купив каву за 50 і хліб за 30" → two expenses (50 and 30).
+  - Example 2: "купив каву і хліб за 80" → one expense (80).
 - **Ukrainian only** (in MVP): The input is always in Ukrainian; respond with Ukrainian descriptions.
 - **No voice processing**: This is text-only in MVP. (Voice transcription happens outside this agent.)
 

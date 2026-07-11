@@ -105,7 +105,11 @@ def _get_chain():
 
 
 def _add_langsmith_metadata(expenses: list[Expense]) -> None:
-    """Attach extracted expense metadata to the current Langsmith run, if active."""
+    """Attach extracted expense metadata to the current Langsmith run, if active.
+
+    Only aggregated metrics are sent: amounts, categories, confidence scores.
+    Sensitive data (user input, descriptions) is NOT sent to LangSmith.
+    """
     if langsmith_client is None:
         return
     try:

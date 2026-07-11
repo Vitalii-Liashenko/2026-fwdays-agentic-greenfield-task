@@ -33,19 +33,69 @@ def test_integration_hard_fail_vague_input():
 
 
 def test_integration_hard_fail_retry():
-    """Hard-fail path: agent retries on validation error."""
-    result = process_expense("на бенз 200")
+    """Hard-fail path: agent retries on validation error.
 
+    Verifies that the processor loop retries on hard-fail (via mock call count).
+    """
+    from unittest.mock import Mock
+    from src.models import Expense, ValidationResult
+
+    call_count = [0]
+
+    def fake_extract_retry_once(text, feedback=None):
+        """Simulates LLM that fails once, then succeeds."""
+        call_count[0] += 1
+        if call_count[0] == 1:
+            # First call: return invalid category to trigger hard-fail
+            return [Expense(amount=200, currency="UAH", category="InvalidCategory",
+                          description=text, datetime="2026-06-27T10:00:00", confidence=0.9)]
+        else:
+            # Retry: return valid category
+            return [Expense(amount=200, currency="UAH", category="Транспорт",
+                          description=text, datetime="2026-06-27T10:00:00", confidence=0.9)]
+
+    def fake_validate_reject_invalid(expenses):
+        """Rejects invalid categories on first call, accepts valid on retry."""
+        for exp in expenses:
+            if exp.category == "InvalidCategory":
+                return ValidationResult(valid=False, errors=["Invalid category"],
+                                      feedback="Use one of the 8 canonical categories")
+        return ValidationResult(valid=True)
+
+    result = process_expense("на бенз 200",
+                           extract_fn=fake_extract_retry_once,
+                           validate_fn=fake_validate_reject_invalid)
+
+    # Verify retry happened (extract called twice)
+    assert call_count[0] == 2, f"Expected 2 extract calls (1 fail + 1 retry), got {call_count[0]}"
     assert result.success is True
-    assert len(result.expenses) >= 1
+    assert len(result.expenses) == 1
+    assert result.expenses[0].category == "Транспорт"
 
 
 def test_integration_error_message():
-    """Error message is clear when processing fails."""
-    result = process_expense("купив товары за 75")
+    """Error message is clear and failure state is set on hard-fail after retries."""
+    from src.models import Expense, ValidationResult
 
-    assert result.message is not None
-    assert len(result.message) > 0
+    def fake_always_invalid(text, feedback=None):
+        # Always return invalid data that cannot be fixed
+        return [Expense(amount=75, currency="UAH", category="InvalidCategory",
+                      description=text, datetime="2026-06-27T10:00:00", confidence=0.5)]
+
+    def fake_always_reject(expenses):
+        return ValidationResult(valid=False, errors=["Invalid category"],
+                              feedback="Use a canonical category")
+
+    result = process_expense("купив товары за 75",
+                           extract_fn=fake_always_invalid,
+                           validate_fn=fake_always_reject)
+
+    # Verify failure state
+    assert result.success is False, "Expected hard-fail after retries"
+    assert result.expenses == [], "Failed processing should have no expenses"
+    assert result.message is not None, "Error message should be present"
+    assert len(result.message) > 0, "Error message should not be empty"
+    assert "❌" in result.message or "не вдалось" in result.message.lower()
 
 
 def test_integration_multi_expense_split():

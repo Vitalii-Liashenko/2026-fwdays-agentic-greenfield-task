@@ -7,6 +7,14 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# Thresholds for calibration judgment
+_CORRECT_THRESHOLD = 0.8
+_HIGH_CONFIDENCE = 0.7
+_GOOD_CALIBRATION_SCORE = 1.0
+_UNCERTAIN_CALIBRATION_SCORE = 0.5
+_APPROPRIATE_CALIBRATION_SCORE = 0.7
+_OVERCONFIDENT_SCORE = 0.0
+
 _REFERENCE_PATH = Path(__file__).parent.parent / "data" / "eval_reference.json"
 _reference_data: Optional[list[dict]] = None
 
@@ -126,20 +134,20 @@ def evaluate_confidence_calibration(run, is_correct: Optional[bool] = None) -> d
         # Auto-determine correctness from category_accuracy
         cat_eval = evaluate_category_accuracy(run)
         cat_score = cat_eval.get("score")
-        is_correct = cat_score is not None and cat_score >= 0.8
+        is_correct = cat_score is not None and cat_score >= _CORRECT_THRESHOLD
 
     # Calibration: good if high confidence + correct, or low confidence + wrong
-    if is_correct and avg_confidence >= 0.7:
-        score = 1.0
+    if is_correct and avg_confidence >= _HIGH_CONFIDENCE:
+        score = _GOOD_CALIBRATION_SCORE
         comment = f"Well-calibrated: high confidence ({avg_confidence:.2f}) on correct prediction"
-    elif is_correct and avg_confidence < 0.7:
-        score = 0.5
+    elif is_correct and avg_confidence < _HIGH_CONFIDENCE:
+        score = _UNCERTAIN_CALIBRATION_SCORE
         comment = f"Under-confident: low confidence ({avg_confidence:.2f}) on correct prediction"
-    elif not is_correct and avg_confidence < 0.7:
-        score = 0.7
+    elif not is_correct and avg_confidence < _HIGH_CONFIDENCE:
+        score = _APPROPRIATE_CALIBRATION_SCORE
         comment = f"Appropriately uncertain: low confidence ({avg_confidence:.2f}) on incorrect prediction"
     else:
-        score = 0.0
+        score = _OVERCONFIDENT_SCORE
         comment = f"Over-confident: high confidence ({avg_confidence:.2f}) on incorrect prediction"
 
     return {"key": "confidence_calibration", "score": score, "comment": comment}

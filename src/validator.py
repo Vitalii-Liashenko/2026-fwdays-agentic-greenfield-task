@@ -11,6 +11,10 @@ from typing import List
 from .config import CONFIDENCE_THRESHOLD
 from .models import Expense, ValidationResult
 
+# Min/max thresholds for calibration judgment
+_GOOD_CONFIDENCE_MIN = 0.7
+_GOOD_CALIBRATION_FACTOR = 0.8
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +38,7 @@ def validate_expense(expense: Expense) -> ValidationResult:
         logger.debug(f"Soft-fail: confidence {expense.confidence} < {CONFIDENCE_THRESHOLD}")
         return ValidationResult(
             valid=True,
-            errors=["confidence < 0.7 (flagged for review)"],
+            errors=[f"confidence < {CONFIDENCE_THRESHOLD} (flagged for review)"],
             feedback=None,
         )
 
@@ -65,7 +69,7 @@ def validate_expenses(expenses: List[Expense]) -> ValidationResult:
     if any_soft_fail:
         return ValidationResult(
             valid=True,
-            errors=["confidence < 0.7 (flagged for review)"],
+            errors=[f"confidence < {CONFIDENCE_THRESHOLD} (flagged for review)"],
             feedback=None,
         )
     return ValidationResult(valid=True)
