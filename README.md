@@ -13,9 +13,11 @@ A Telegram-based expense tracker that uses an LLM agent to parse free-form Ukrai
 
 **Stack**:
 - Language: Python 3.10+
-- LLM: OpenAI (GPT-4o-mini)
+- LLM: OpenAI (GPT-4o-mini) via LangChain (LCEL chain + structured output)
+- Tracing/evals: Langsmith (optional)
 - Telegram: `python-telegram-bot`
 - Storage: PostgreSQL (Docker Compose)
+- Validation: Pydantic v2 (hard-fail rules at construction)
 - Testing: pytest
 
 ## Quick Start
@@ -82,30 +84,44 @@ View all expenses:
 
 ```
 .
-├── AGENTS.md                    # Agent system prompt & context
+├── AGENTS.md                    # Parser-agent context: schema, rules, few-shot examples
+├── CLAUDE.md                    # Points to AGENTS.md (project instructions)
+├── README.md                    # This file
 ├── docs/
-│   ├── prd.md                   # Product spec
-│   └── spec.md                  # (deferred)
-├── src/
-│   ├── __init__.py
-│   ├── agent.py                 # LLM-powered parser
-│   ├── validator.py             # Rule-based checker
-│   ├── processor.py             # Orchestrator (parse → validate → retry)
-│   ├── storage.py               # PostgreSQL queries
-│   ├── bot.py                   # Telegram interface
-│   └── config.py                # Config & constants
-├── tests/
-│   ├── test_validator.py        # Unit tests for checker
-│   ├── test_integration.py      # E2E tests (parse → validate → store)
-│   └── evals/
-│       └── test_reasoning.py    # 10 reasoning evals (agent correctness)
+│   └── prd.md                   # Product spec (PRD)
 ├── migrations/
 │   └── init.sql                 # Database schema
+├── data/
+│   └── eval_reference.json      # Gold-standard dataset for Langsmith evaluators
+├── openspec/                    # Spec-driven dev: active specs + archived changes
+│   ├── specs/                   # 8 capability specs (requirements + scenarios)
+│   ├── changes/                 # Active: add-langsmith, arch-review-improvements
+│   └── changes/archive/         # 3 completed changes
+├── src/
+│   ├── __init__.py
+│   ├── agent.py                 # LangChain parser (LLM extraction + retry)
+│   ├── models.py                # Pydantic Expense / ValidationResult (hard-fail rules)
+│   ├── validator.py             # Soft-fail checker (confidence threshold)
+│   ├── processor.py             # Orchestrator (parse → validate → retry loop)
+│   ├── storage.py               # PostgreSQL store (injectable conn_factory)
+│   ├── evals.py                 # Langsmith evaluators (category/amount/calibration)
+│   ├── bot.py                   # Telegram interface
+│   └── config.py                # Config, constants, category vocabulary
+├── tests/
+│   ├── test_validator.py        # Hard-fail rules (Pydantic construction)
+│   ├── test_processor.py        # Retry loop with injected fakes (no LLM)
+│   ├── test_storage.py          # Store with fake connection (no DB)
+│   ├── test_agent_datetime.py   # Datetime inference with fake chain (no LLM)
+│   ├── test_langsmith.py        # submit_feedback + evaluators
+│   ├── test_integration.py      # E2E: parse → validate (requires OPENAI_API_KEY)
+│   └── evals/
+│       └── test_reasoning.py    # 9 reasoning evals + 80% pass-rate gate
+├── .github/
+│   └── pull_request_template.md # Submission checklist
 ├── docker-compose.yml           # PostgreSQL container
 ├── requirements.txt             # Dependencies
-├── pyproject.toml               # Python config
-├── .env.example                 # Secrets template
-└── README.md                    # This file
+├── pyproject.toml               # Python config (black/ruff/mypy)
+└── .env.example                 # Secrets template
 ```
 
 ## Testing
@@ -116,11 +132,13 @@ View all expenses:
 pytest
 ```
 
-### Run Unit Tests Only
+### Run Non-LLM Unit Tests (no API key required)
 
 ```bash
-pytest tests/test_validator.py
+pytest tests/test_validator.py tests/test_processor.py tests/test_storage.py tests/test_agent_datetime.py tests/test_langsmith.py
 ```
+
+These use injected fakes (fake chain, fake DB connection) and run offline.
 
 ### Run Reasoning Evals
 
@@ -128,7 +146,9 @@ pytest tests/test_validator.py
 pytest tests/evals/test_reasoning.py -v
 ```
 
-Pass rate target: **≥ 80%**
+Pass rate target: **≥ 80%** (enforced in [test_reasoning.py](tests/evals/test_reasoning.py)).
+
+> **Note:** Evals and integration tests call the real OpenAI API and require `OPENAI_API_KEY`. Run them when you want to measure agent correctness, not on every commit.
 
 ### Run Integration Tests
 

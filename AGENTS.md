@@ -18,12 +18,6 @@ For environment setup, quick start, testing commands, code style, and project st
 - [ ] PR filled with: name, demo video link, agentic practices description
 - [ ] CodeRabbit feedback reviewed and incorporated if needed
 
-### Agent Skills
-
-- **Issue tracker**: Issues live as GitHub issues, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
-- **Triage labels**: Canonical roles map 1:1 to labels (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
-- **Domain docs**: One `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
-
 ---
 
 ## Parser Agent
