@@ -1,4 +1,4 @@
-# Voice Expense Tracker — Product Requirements Document
+# Expense Tracker — Product Requirements Document
 
 ## 1. Overview
 

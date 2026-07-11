@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Single source of truth for the Voice Expense Tracker project — agent context, system prompts, project setup, and development workflow.
+Single source of truth for the Expense Tracker project — agent context, system prompts, project setup, and development workflow.
 
 ---
 

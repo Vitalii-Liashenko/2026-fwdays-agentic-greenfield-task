@@ -1,4 +1,4 @@
-# Voice Expense Tracker
+# Expense Tracker
 
 A Telegram-based expense tracker that uses an LLM agent to parse free-form Ukrainian text into structured expenses.
 
