@@ -92,7 +92,22 @@ OTHER RULES:
 5. Always return ISO 8601 datetime without timezone suffix (e.g., 2026-06-28T14:30:00).
 6. Amount must be > 0 or null if unknown.
 7. Category must be one of the 8 above or null if too vague.
-8. Confidence: 0.9-1.0 for clear input, 0.7-0.8 for slightly ambiguous, 0.3-0.6 for vague, less than 0.3 for too vague.
+8. Confidence scoring: Your confidence score (0.0–1.0) reflects your certainty in the extraction.
+   SCORING RANGES:
+   - 0.9–1.0: Clear, unambiguous input. Example: "купив каву за 50" → 0.95
+   - 0.8–0.89: Mostly clear but minor ambiguity (time not specified). Example: "50 на каву сьогодні" → 0.85
+   - 0.7–0.79: Slightly ambiguous but resolvable. Example: "витратив 50 на дрібниці" (category unclear) → 0.75
+   - 0.5–0.69: Ambiguous category but amount is present. Example: "купив якусь дрібницю за 20" → 0.55
+   - 0.3–0.49: Very vague; category is essentially a guess. Example: "витратив на якусь річ" + inferred amount → 0.35
+   - < 0.3: Reserved only for cases where category is genuinely unknowable but amount exists. DO NOT use as substitute for missing amount.
+
+   SCORING ALGORITHM:
+   1. Start at 1.0 (assume full confidence)
+   2. Deduct 0.05 for each missing/ambiguous element (no time, unclear category, typo)
+   3. Deduct 0.2 if category is "Інше" (catch-all indicates uncertainty)
+   4. Deduct 0.3 if amount required inference (user said "біля 50" not "50")
+   5. Final score = max(0.0, min(1.0, base - deductions))
+
 9. Do NOT add extra fields or omit required fields in any object.
 10. Do NOT hallucinate categories outside the vocabulary.
 11. Preserve original text in description unless normalizing for clarity."""
@@ -167,13 +182,27 @@ def extract_expense(user_input: str, feedback: Optional[str] = None, chain=None)
     logger.debug(f"Invoking chain with received_at={now.isoformat()}, user_input={expense_input}")
     try:
         result = active_chain.invoke({"received_at": now.isoformat(), "user_input": expense_input})
-        logger.debug(f"Chain returned ExpenseList: {result}")
+
+        # Validate output structure
+        logger.debug(f"Chain returned type: {type(result).__name__}")
+        if not isinstance(result, ExpenseList):
+            logger.error(f"Unexpected chain output type: expected ExpenseList, got {type(result).__name__}")
+            raise ValueError(f"Expected ExpenseList, got {type(result).__name__}")
+
         expenses = result.expenses
         logger.debug(f"Extracted {len(expenses)} expense(s)")
+
+        # Log expense details for debugging
+        for i, expense in enumerate(expenses):
+            logger.debug(
+                f"  Expense {i+1}: amount={expense.amount}, category={expense.category}, "
+                f"confidence={expense.confidence}, datetime={expense.datetime}"
+            )
+
         _add_langsmith_metadata(expenses)
         return expenses
     except Exception as e:
-        logger.error(f"Chain invocation failed: {e}")
+        logger.error(f"Chain invocation failed: {e}", exc_info=True)
         raise
 
 

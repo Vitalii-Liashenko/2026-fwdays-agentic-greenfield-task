@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, timedelta
 from typing import Optional
 
-from .config import VALID_CATEGORIES
+from .config import VALID_CATEGORIES, ERROR_MESSAGES
 
 
 class ExpenseList(BaseModel):
@@ -25,20 +25,20 @@ class Expense(BaseModel):
     def validate_amount(cls, v):
         """Ensure amount is a positive number."""
         if v is None:
-            raise ValueError("amount is required and must be > 0")
+            raise ValueError(ERROR_MESSAGES["AMOUNT_REQUIRED"])
         if v <= 0:
-            raise ValueError("amount must be > 0")
+            raise ValueError(ERROR_MESSAGES["AMOUNT_REQUIRED"])
         return v
 
     @field_validator("category")
     def validate_category(cls, v):
         """Ensure category is one of 8 canonical values."""
         if v is None:
-            raise ValueError("category is required")
+            raise ValueError(ERROR_MESSAGES["INVALID_CATEGORY"])
         if v not in VALID_CATEGORIES:
             raise ValueError(
-                f"category '{v}' is not in vocabulary. "
-                f"Valid categories: {', '.join(sorted(VALID_CATEGORIES))}"
+                f"{ERROR_MESSAGES['INVALID_CATEGORY']} "
+                f"(отримано: '{v}', очікувалось: {', '.join(sorted(VALID_CATEGORIES))})"
             )
         return v
 
@@ -52,10 +52,10 @@ class Expense(BaseModel):
             # Use local time + 60s buffer to tolerate LLM processing latency
             now = datetime.now() + timedelta(seconds=60)
             if parsed > now:
-                raise ValueError("datetime cannot be in the future")
+                raise ValueError(ERROR_MESSAGES["INVALID_DATETIME"])
             return v
         except ValueError as e:
-            raise ValueError(f"Invalid ISO 8601 datetime: {e}")
+            raise ValueError(f"{ERROR_MESSAGES['INVALID_DATETIME']} (Деталі: {e})")
 
     @field_validator("confidence")
     def validate_confidence(cls, v):
@@ -68,7 +68,7 @@ class Expense(BaseModel):
     def validate_description(cls, v):
         """Ensure description is non-empty."""
         if not v or not v.strip():
-            raise ValueError("description must be non-empty")
+            raise ValueError(ERROR_MESSAGES["EMPTY_DESCRIPTION"])
         return v.strip()
 
 

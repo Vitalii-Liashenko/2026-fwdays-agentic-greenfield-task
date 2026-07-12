@@ -6,7 +6,7 @@ from typing import Optional, Callable, List
 from .agent import extract_expense
 from .validator import validate_expenses
 from .models import Expense, ProcessExpenseResult
-from .config import MAX_RETRIES
+from .config import MAX_RETRIES, ERROR_MESSAGES
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +47,13 @@ def process_expense(
 
             if not expenses:
                 logger.warning("LLM returned empty expenses list (unable to parse)")
-                feedback = "Помилка обробки: Не вдалось розпізнати витрату. Будь ласка, надайте суму та категорію більш чітко."
+                feedback = ERROR_MESSAGES["PARSE_FAILED"]
                 if attempt == MAX_RETRIES:
                     logger.error("Max retries reached: empty expenses list")
                     return ProcessExpenseResult(
                         success=False,
                         errors=["Unable to parse expense"],
-                        message="❌ Не вдалось обробити після 3 спроб. Спробуйте ще раз або надайте більше деталей.",
+                        message=f"❌ {ERROR_MESSAGES['PROCESSING_FAILED']}",
                     )
                 continue
 
@@ -89,7 +89,7 @@ def process_expense(
                     return ProcessExpenseResult(
                         success=False,
                         errors=validation.errors,
-                        message="❌ Не вдалось обробити після 3 спроб. Спробуйте ще раз або надайте більше деталей.",
+                        message=f"❌ {ERROR_MESSAGES['PROCESSING_FAILED']}",
                     )
 
         except Exception as e:
@@ -99,9 +99,9 @@ def process_expense(
                 return ProcessExpenseResult(
                     success=False,
                     errors=[str(e)],
-                    message=f"❌ Помилка обробки: {str(e)}",
+                    message=f"❌ {ERROR_MESSAGES['PROCESSING_FAILED']}",
                 )
-            feedback = f"Помилка обробки: {str(e)}"
+            feedback = f"{ERROR_MESSAGES['VALIDATION_FAILED']} ({str(e)})"
 
     logger.error("Reached end of process_expense without returning")
     return ProcessExpenseResult(
