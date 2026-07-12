@@ -159,10 +159,13 @@ def extract_expense(user_input: str, feedback: Optional[str] = None, chain=None)
     """
     Extract structured expenses from user input using LangChain.
 
+    All timestamps are in LOCAL timezone (naive datetime). This system does NOT use UTC.
+    Migration to UTC would require schema changes and careful date handling across the codebase.
+
     Args:
         user_input: Free-form Ukrainian text describing one or more expenses.
         feedback: Optional validation feedback from a prior failed attempt.
-        chain: Optional LangChain chain to use. Defaults to lazily-initialized module chain.
+        chain: Optional LangChain chain to use (for testing). Defaults to lazily-initialized module chain.
 
     Returns:
         List of Expense objects (one per detected purchase).
