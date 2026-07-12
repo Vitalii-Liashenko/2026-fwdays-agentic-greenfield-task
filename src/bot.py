@@ -1,5 +1,6 @@
 """Telegram bot interface for the expense tracker."""
 
+import asyncio
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
@@ -33,8 +34,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /report command."""
     try:
-        expenses = _store.get_all_expenses()
-        total = _store.get_total_expense()
+        expenses = await asyncio.to_thread(_store.get_all_expenses)
+        total = await asyncio.to_thread(_store.get_total_expense)
 
         if not expenses:
             await update.message.reply_text("📊 Витрат не знайдено.")
@@ -68,14 +69,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         # Process the expense
         logger.debug("Calling process_expense...")
-        result = process_expense(user_input)
+        result = await asyncio.to_thread(process_expense, user_input)
         logger.debug(f"process_expense returned: success={result.success}, message={result.message}")
 
         if result.success and result.expenses:
             # Store all expenses
             try:
                 logger.debug(f"Storing {len(result.expenses)} expense(s)")
-                _store.store_expenses(result.expenses, validation_errors=result.validation_errors)
+                await asyncio.to_thread(_store.store_expenses, result.expenses, result.validation_errors)
                 summary = ", ".join(
                     f"{e.amount} UAH ({e.category})" for e in result.expenses
                 )
