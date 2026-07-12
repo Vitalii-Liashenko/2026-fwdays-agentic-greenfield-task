@@ -45,6 +45,18 @@ def process_expense(
             expenses = _extract(raw_text, feedback=feedback)
             logger.debug(f"Expenses extracted: {expenses}")
 
+            if not expenses:
+                logger.warning("LLM returned empty expenses list (unable to parse)")
+                feedback = "Помилка обробки: Не вдалось розпізнати витрату. Будь ласка, надайте суму та категорію більш чітко."
+                if attempt == MAX_RETRIES:
+                    logger.error("Max retries reached: empty expenses list")
+                    return ProcessExpenseResult(
+                        success=False,
+                        errors=["Unable to parse expense"],
+                        message="❌ Не вдалось обробити після 3 спроб. Спробуйте ще раз або надайте більше деталей.",
+                    )
+                continue
+
             logger.debug("Validating expenses...")
             validation = _validate(expenses)
             logger.debug(f"Validation result: valid={validation.valid}, errors={validation.errors}")
