@@ -258,6 +258,22 @@ from src.agent import submit_feedback
 submit_feedback(run_id="...", expected_category="Транспорт", expected_amount=200)
 ```
 
+## Out of Scope (MVP)
+
+The following features are documented but intentionally not implemented in the MVP:
+
+### Data Retention & Cleanup
+
+- **`validation_logs` 30-day retention policy**: Documented in code comments and database schema, but automatic cleanup is not implemented.
+- **Why**: Requires a background job (e.g., APScheduler, Celery, or a cron task outside the bot process).
+
+### Architectural Improvements (Deferred)
+
+- **Migration to UTC timezone**: Currently all timestamps are in local (naive) timezone. Migration to UTC would require schema changes and careful date handling across the codebase.
+- **Advanced Error Categorization**: Current error handling distinguishes connection errors, integrity violations, and generic DB errors. More granular categorization (e.g., specific CHECK constraint names) is out of scope.
+
+---
+
 ## Future (MVP+1)
 
 - Voice input (STT)

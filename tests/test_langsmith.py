@@ -29,7 +29,7 @@ def _make_run(categories=None, amounts=None, confidences=None, user_input="ку�
 class TestSubmitFeedback:
     def test_submit_calls_create_feedback(self):
         mock_client = MagicMock()
-        with patch.object(agent_module, "langsmith_client", mock_client):
+        with patch.object(agent_module, "_get_langsmith_client", return_value=mock_client):
             submit_feedback(
                 run_id="test-run-id",
                 expected_category="Кафе/Ресторани",
@@ -41,14 +41,14 @@ class TestSubmitFeedback:
         assert call_kwargs["key"] == "correction"
 
     def test_submit_no_op_when_client_none(self):
-        with patch.object(agent_module, "langsmith_client", None):
+        with patch.object(agent_module, "_get_langsmith_client", return_value=None):
             # Should not raise even with no client configured
             submit_feedback(run_id="x", expected_category="Транспорт", expected_amount=100)
 
     def test_submit_swallows_api_error(self):
         mock_client = MagicMock()
         mock_client.create_feedback.side_effect = RuntimeError("API error")
-        with patch.object(agent_module, "langsmith_client", mock_client):
+        with patch.object(agent_module, "_get_langsmith_client", return_value=mock_client):
             # Should not propagate the error
             submit_feedback(run_id="x", expected_category="Транспорт", expected_amount=100)
 

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import threading
 from datetime import datetime
 from typing import Optional
 
@@ -14,28 +15,42 @@ from .models import Expense, ExpenseList
 
 logger = logging.getLogger(__name__)
 
-# Langsmith client singleton — initialized at module load if credentials are set
-langsmith_client = None
+# Thread-safe Langsmith client singleton
+_langsmith_client = None
+_langsmith_lock = threading.Lock()
 
 
-def _init_langsmith_client():
-    """Initialize Langsmith client if LANGSMITH_API_KEY and LANGSMITH_PROJECT are set."""
-    global langsmith_client
-    api_key = os.environ.get("LANGSMITH_API_KEY")
-    project = os.environ.get("LANGSMITH_PROJECT")
-    if not api_key or not project:
-        return
-    try:
-        from langsmith import Client as LangsmithClientClass
-        endpoint = os.environ.get("LANGSMITH_ENDPOINT")
-        langsmith_client = LangsmithClientClass(api_key=api_key, api_url=endpoint)
-        logger.info(f"Langsmith tracing enabled for project: {project} (endpoint: {endpoint or 'default'})")
-    except Exception as e:
-        logger.warning(f"Langsmith initialization failed, tracing disabled: {e}")
-        langsmith_client = None
+def _get_langsmith_client():
+    """Thread-safe getter for Langsmith client singleton.
 
+    Initializes on first call if LANGSMITH_API_KEY and LANGSMITH_PROJECT are set.
+    Uses double-checked locking to avoid lock contention after initialization.
+    Returns None if credentials are not set or initialization failed.
+    """
+    global _langsmith_client
+    if _langsmith_client is not None:
+        return _langsmith_client
 
-_init_langsmith_client()
+    with _langsmith_lock:
+        if _langsmith_client is not None:
+            return _langsmith_client
+
+        api_key = os.environ.get("LANGSMITH_API_KEY")
+        project = os.environ.get("LANGSMITH_PROJECT")
+        if not api_key or not project:
+            logger.debug("Langsmith not configured (missing API_KEY or PROJECT)")
+            return None
+
+        try:
+            from langsmith import Client as LangsmithClientClass
+            endpoint = os.environ.get("LANGSMITH_ENDPOINT")
+            _langsmith_client = LangsmithClientClass(api_key=api_key, api_url=endpoint)
+            logger.info(f"Langsmith tracing enabled for project: {project} (endpoint: {endpoint or 'default'})")
+        except Exception as e:
+            logger.warning(f"Langsmith initialization failed, tracing disabled: {e}")
+            _langsmith_client = None
+
+        return _langsmith_client
 
 # System prompt for the LLM (refers to AGENTS.md content)
 SYSTEM_PROMPT = """You are an expense parser agent. Your task is to extract structured expense data from free-form Ukrainian text.
@@ -110,7 +125,7 @@ def _add_langsmith_metadata(expenses: list[Expense]) -> None:
     Only aggregated metrics are sent: amounts, categories, confidence scores.
     Sensitive data (user input, descriptions) is NOT sent to LangSmith.
     """
-    if langsmith_client is None:
+    if _get_langsmith_client() is None:
         return
     try:
         from langsmith import get_current_run_tree
@@ -172,11 +187,12 @@ def submit_feedback(
 
     Non-blocking: errors are logged and swallowed so callers are unaffected.
     """
-    if langsmith_client is None:
+    client = _get_langsmith_client()
+    if client is None:
         logger.debug("Langsmith not configured; feedback submission skipped")
         return
     try:
-        langsmith_client.create_feedback(
+        client.create_feedback(
             run_id=run_id,
             key="correction",
             score=0,

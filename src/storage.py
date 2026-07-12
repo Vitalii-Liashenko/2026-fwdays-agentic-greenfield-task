@@ -1,6 +1,7 @@
 """Storage: PostgreSQL interaction for expense persistence."""
 
 import psycopg2
+from psycopg2 import IntegrityError, OperationalError, DatabaseError
 from psycopg2.extras import RealDictCursor
 from typing import Callable, Optional, List
 
@@ -62,9 +63,15 @@ class ExpenseStore:
                 expense_id = cur.fetchone()[0]
                 conn.commit()
                 return expense_id
-        except psycopg2.Error as e:
+        except IntegrityError as e:
             conn.rollback()
-            raise StorageError(f"Failed to store expense: {e}")
+            raise StorageError(f"Invalid expense data (constraint violation): {e}") from e
+        except OperationalError as e:
+            conn.rollback()
+            raise StorageError(f"Database connection error: {e}") from e
+        except DatabaseError as e:
+            conn.rollback()
+            raise StorageError(f"Database error: {e}") from e
         finally:
             conn.close()
 
@@ -90,8 +97,10 @@ class ExpenseStore:
                     """
                 )
                 return cur.fetchall()
-        except psycopg2.Error as e:
-            raise StorageError(f"Failed to retrieve expenses: {e}")
+        except OperationalError as e:
+            raise StorageError(f"Database connection error: {e}") from e
+        except DatabaseError as e:
+            raise StorageError(f"Database error while retrieving expenses: {e}") from e
         finally:
             conn.close()
 
@@ -115,8 +124,10 @@ class ExpenseStore:
                     (category,),
                 )
                 return cur.fetchall()
-        except psycopg2.Error as e:
-            raise StorageError(f"Failed to retrieve expenses by category: {e}")
+        except OperationalError as e:
+            raise StorageError(f"Database connection error: {e}") from e
+        except DatabaseError as e:
+            raise StorageError(f"Database error while retrieving expenses by category: {e}") from e
         finally:
             conn.close()
 
@@ -133,8 +144,10 @@ class ExpenseStore:
                 cur.execute("SELECT SUM(amount) FROM expenses WHERE validation_errors IS NULL;")
                 result = cur.fetchone()[0]
                 return result or 0.0
-        except psycopg2.Error as e:
-            raise StorageError(f"Failed to calculate total: {e}")
+        except OperationalError as e:
+            raise StorageError(f"Database connection error: {e}") from e
+        except DatabaseError as e:
+            raise StorageError(f"Database error while calculating total: {e}") from e
         finally:
             conn.close()
 
@@ -156,8 +169,14 @@ class ExpenseStore:
                     (user_input, error_message, attempt_number),
                 )
                 conn.commit()
-        except psycopg2.Error as e:
+        except IntegrityError as e:
             conn.rollback()
-            raise StorageError(f"Failed to log validation failure: {e}")
+            raise StorageError(f"Invalid validation log data: {e}") from e
+        except OperationalError as e:
+            conn.rollback()
+            raise StorageError(f"Database connection error: {e}") from e
+        except DatabaseError as e:
+            conn.rollback()
+            raise StorageError(f"Database error while logging validation failure: {e}") from e
         finally:
             conn.close()
