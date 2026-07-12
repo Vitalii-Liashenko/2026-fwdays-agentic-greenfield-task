@@ -1,20 +1,38 @@
 """Expense processor: orchestrates agent → validator → storage."""
 
 import logging
-from typing import Optional, Callable, List
+from typing import Optional, Protocol, List
 
 from .agent import extract_expense
 from .validator import validate_expenses
-from .models import Expense, ProcessExpenseResult
+from .models import Expense, ProcessExpenseResult, ValidationResult
 from .config import MAX_RETRIES, ERROR_MESSAGES
+
+
+class ExpenseExtractor(Protocol):
+    """Protocol for expense extraction functions."""
+
+    def __call__(
+        self, user_input: str, feedback: Optional[str] = None
+    ) -> List[Expense]:
+        """Extract expenses from user input, optionally with retry feedback."""
+        ...
+
+
+class ExpenseValidator(Protocol):
+    """Protocol for expense validation functions."""
+
+    def __call__(self, expenses: List[Expense]) -> ValidationResult:
+        """Validate a list of expenses and return validation result."""
+        ...
 
 logger = logging.getLogger(__name__)
 
 
 def process_expense(
     raw_text: str,
-    extract_fn: Callable = None,
-    validate_fn: Callable = None,
+    extract_fn: Optional[ExpenseExtractor] = None,
+    validate_fn: Optional[ExpenseValidator] = None,
 ) -> ProcessExpenseResult:
     """
     Process a raw user input: parse with agent, validate with checker, retry on hard-fail.
@@ -28,6 +46,8 @@ def process_expense(
 
     Args:
         raw_text: User input text to process.
+        extract_fn: Optional custom expense extractor (for testing). Defaults to extract_expense.
+        validate_fn: Optional custom expense validator (for testing). Defaults to validate_expenses.
 
     Returns:
         ProcessExpenseResult with success flag, expenses list, and message.

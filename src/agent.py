@@ -165,7 +165,10 @@ def extract_expense(user_input: str, feedback: Optional[str] = None, chain=None)
     Args:
         user_input: Free-form Ukrainian text describing one or more expenses.
         feedback: Optional validation feedback from a prior failed attempt.
-        chain: Optional LangChain chain to use (for testing). Defaults to lazily-initialized module chain.
+                 When provided, appended to user_input to guide LLM retry.
+        chain: Optional LangChain chain to use (for testing only; allows injection of mock).
+               Defaults to lazily-initialized module chain from _get_chain().
+               DO NOT use in production; use only in unit tests to inject test doubles.
 
     Returns:
         List of Expense objects (one per detected purchase).
